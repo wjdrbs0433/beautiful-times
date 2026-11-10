@@ -1,0 +1,32 @@
+{
+  "eslint.workingDirectories": [
+    {
+      "directory": "./bt",
+      "changeProcessCWD": true
+    }
+  ],
+  "search.exclude": {
+    "**/node_modules": true,
+    "bt/android": true,
+    "bt/dist": true,
+    "bt/dist-android": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
+}

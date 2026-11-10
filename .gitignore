@@ -1,0 +1,66 @@
+# Secrets: only empty, reviewed templates may be committed.
+.env
+.env.*
+!.env.example
+!.env.route.example
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+credentials.json
+service-account*.json
+service_role*.json
+.npmrc
+.netrc
+.aws/
+.ssh/
+
+# Dependencies, generated code, caches, and build output.
+node_modules/
+.expo/
+.gradle/
+.kotlin/
+build/
+dist/
+dist-android/
+web-build/
+coverage/
+*.tsbuildinfo
+*.log
+*.apk
+*.aab
+*.ipa
+/bt/android/
+/bt/ios/
+
+# Local database files, exports, and archives are not source backups.
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.zip
+*.tar
+*.gz
+backups/
+exports/
+.backup-tools/
+
+# Public repository: share only the reviewed, portable setup guide.
+# Internal audit reports, PC details, DB exports, and screenshots stay local.
+/docs/**
+!/docs/Windows-개발-시작하기.md
+
+# Per-computer and OS files.
+.DS_Store
+Thumbs.db
+Desktop.ini
+local.properties
+*.iml
+.idea/
+*.swp
+*.swo

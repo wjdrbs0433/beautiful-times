@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,maximum-scale=1"
+    />
+    <title>BT 일정 지도</title>
+    <style>
+      html,
+      body,
+      #map {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #eef1ea;
+      }
+      #status {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 13px;
+        color: #687862;
+        padding: 24px;
+        z-index: 2;
+        background: #eef1ea;
+        line-height: 1.8;
+      }
+      .pin { min-width: 36px; height: 36px; box-sizing: border-box; padding: 0 8px; display: flex; align-items: center; justify-content: center; background: white; color: #333833; border: 3px solid #333833; border-radius: 22px; font-size: 18px; font-weight: 800; box-shadow: 0 3px 8px #0004; white-space: nowrap; }
+      .pin.start { background: #516949; color: white; border-color: white; }
+      .pin.end { background: #333833; color: white; border-color: white; }
+      .segment-label { background: #fffffff2; border: 1px solid #a5b39d; border-radius: 12px; padding: 3px 7px; font-size: 12px; font-weight: 700; color: #333833; white-space: nowrap; box-shadow: 0 2px 6px #0002; }
+      .legend {
+        position: absolute;
+        bottom: 32px;
+        left: 8px;
+        z-index: 1;
+        background: #fffffff0;
+        border: 1px solid #dde3d6;
+        padding: 5px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        color: #53634c;
+        pointer-events: none;
+      }
+      #unresolved {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        z-index: 1;
+        background: #fffffff0;
+        font-size: 11px;
+        color: #53634c;
+        padding: 6px 9px;
+        border-radius: 4px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="status">카카오 지도를 불러오는 중이에요…</div>
+    <div id="unresolved"></div>
+    <div class="legend">방문 순서 연결선 · 실제 도로 경로와 달라요</div>
+    <script>
+      (function () {
+        const params = new URLSearchParams(location.search);
+        const key = params.get("key") || "";
+        const expectedParent = location.origin;
+        let map,
+          places,
+          overlays = [],
+          lines = [],
+          lastConfig,
+          lastSearch = "",
+          timer,
+          sequence = 0,
+          lastStopSignature = "",
+          lastGeometrySignature = "";
+        const status = document.getElementById("status");
+        function send(data) {
+          const text = JSON.stringify(data);
+          if (window.ReactNativeWebView)
+            window.ReactNativeWebView.postMessage(text);
+          else if (parent !== window) parent.postMessage(data, expectedParent);
+        }
+        function error(message) {
+          status.textContent = message;
+          status.style.display = "flex";
+          send({ type: "error", message });
+        }
+        function render(config) {
+          if (!map) {
+            lastConfig = config;
+            return;
+          }
+          const stops = Array.isArray(config.stops) ? config.stops : [];
+          const segments = Array.isArray(config.segments) ? config.segments : [];
+          const signature = JSON.stringify([stops, segments]);
+          const geometrySignature = JSON.stringify(stops.map(s => [s.id, s.lat, s.lng]));
+          const fitBounds = geometrySignature !== lastGeometrySignature;
+          lastGeometrySignature = geometrySignature;
+          if (signature !== lastStopSignature) {
+            lastStopSignature = signature;
+            overlays.forEach((o) => o.setMap(null));
+            overlays = [];
+            lines.forEach(l => l.setMap(null)); lines = [];
+            const path = [],
+              bounds = new kakao.maps.LatLngBounds();
+            const groups = new Map();
+            stops.forEach((s,index) => {
+              if(!Number.isFinite(s.lat)||!Number.isFinite(s.lng)) return;
+              const point = new kakao.maps.LatLng(s.lat,s.lng); path.push(point); bounds.extend(point);
+              const groupKey = s.lat.toFixed(4)+','+s.lng.toFixed(4);
+              if(!groups.has(groupKey)) groups.set(groupKey,[]);
+              groups.get(groupKey).push({stop:s,index,point});
+            });
+            groups.forEach(group => {
+              const first = group[0]; const content=document.createElement('div');
+              content.className='pin'+(group.some(p=>p.index===0)?' start':group.some(p=>p.index===stops.length-1)?' end':'');
+              content.textContent=group.map(p=>p.index+1).join('·');
+              content.title=group.map(p=>(p.index+1)+' '+String(p.stop.name)).join(' / ');
+              content.setAttribute('aria-label',content.title);
+              overlays.push(new kakao.maps.CustomOverlay({map,position:first.point,content,yAnchor:.5,zIndex:5}));
+            });
+            for(let i=1;i<stops.length;i++) {
+              const a=stops[i-1], b=stops[i];
+              if(!Number.isFinite(a.lat)||!Number.isFinite(a.lng)||!Number.isFinite(b.lat)||!Number.isFinite(b.lng))continue;
+              lines.push(new kakao.maps.Polyline({map,path:[new kakao.maps.LatLng(a.lat,a.lng),new kakao.maps.LatLng(b.lat,b.lng)],strokeWeight:4,strokeColor:'#687862',strokeOpacity:.9,strokeStyle:'solid',endArrow:true,zIndex:2}));
+              const badge=document.createElement('div');badge.className='segment-label';const segment=segments[i-1];badge.textContent=segment?.fromId===a.id&&segment?.toId===b.id?String(segment.label):i+' → '+(i+1);
+              overlays.push(new kakao.maps.CustomOverlay({map,position:new kakao.maps.LatLng((a.lat+b.lat)/2,(a.lng+b.lng)/2),content:badge,yAnchor:.5,zIndex:3}));
+            }
+            if (fitBounds && path.length > 1) map.setBounds(bounds, 50, 70, 50, 70);
+            else if (fitBounds && path.length === 1) {
+              map.setCenter(path[0]);
+              map.setLevel(4);
+            }
+            const missing = stops.length - path.length;
+            const notice = document.getElementById("unresolved");
+            notice.style.display = missing ? "block" : "none";
+            notice.textContent =
+              missing + "개 장소는 검색 결과에서 선택해 주세요";
+          }
+          const query = String(config.query || "").trim();
+          const requestId = String(config.requestId || "");
+          const searchKey = requestId + "|" + query;
+          if (searchKey === lastSearch) return;
+          lastSearch = searchKey;
+          clearTimeout(timer);
+          const current = ++sequence;
+          if (query.length < 2) {
+            send({ type: "results", requestId, query, places: [] });
+            return;
+          }
+          timer = setTimeout(
+            () =>
+              places.keywordSearch(
+                query,
+                (data, resultStatus) => {
+                  if (current !== sequence) return;
+                  if (resultStatus === kakao.maps.services.Status.OK)
+                    send({
+                      type: "results",
+                      requestId,
+                      query,
+                      places: data
+                        .slice(0, 7)
+                        .map((p) => ({
+                          id: p.id,
+                          name: p.place_name,
+                          address: p.address_name,
+                          roadAddress: p.road_address_name || "",
+                          lat: Number(p.y),
+                          lng: Number(p.x),
+                          url: p.place_url,
+                        })),
+                    });
+                  else
+                    send({
+                      type: "results",
+                      requestId,
+                      query,
+                      places: [],
+                      error:
+                        resultStatus === kakao.maps.services.Status.ZERO_RESULT
+                          ? "검색 결과가 없어요. 지역명과 함께 입력해 보세요."
+                          : "장소 검색을 완료하지 못했어요. 키 설정과 사용량을 확인해 주세요.",
+                    });
+                },
+                { size: 7 },
+              ),
+            450,
+          );
+        }
+        function receive(event) {
+          if (
+            !window.ReactNativeWebView &&
+            (event.origin !== expectedParent || event.source !== parent)
+          )
+            return;
+          try {
+            const d =
+              typeof event.data === "string"
+                ? JSON.parse(event.data)
+                : event.data;
+            if (d && d.type === "configure") render(d);
+          } catch {}
+        }
+        window.addEventListener("message", receive);
+        document.addEventListener("message", receive);
+        if (!/^[a-f0-9]{32}$/i.test(key)) {
+          error("카카오 JavaScript 키를 설정해 주세요.");
+          return;
+        }
+        const watchdog = setTimeout(
+          () =>
+            error(
+              "지도를 불러오지 못했어요.\nJavaScript 키·카카오맵 활성화·SDK 도메인을 확인해 주세요.",
+            ),
+          15000,
+        );
+        const script = document.createElement("script");
+        script.src =
+          "https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&libraries=services&appkey=" +
+          encodeURIComponent(key);
+        script.onerror = () => {
+          clearTimeout(watchdog);
+          error(
+            "카카오 지도 연결 실패\n인터넷과 키·SDK 도메인을 확인해 주세요.",
+          );
+        };
+        script.onload = () => {
+          try {
+            kakao.maps.load(() => {
+              clearTimeout(watchdog);
+              map = new kakao.maps.Map(document.getElementById("map"), {
+                center: new kakao.maps.LatLng(37.5665, 126.978),
+                level: 7,
+              });
+              map.addControl(
+                new kakao.maps.ZoomControl(),
+                kakao.maps.ControlPosition.RIGHT,
+              );
+              places = new kakao.maps.services.Places();
+              status.style.display = "none";
+              send({ type: "ready" });
+              if (lastConfig) render(lastConfig);
+            });
+          } catch {
+            clearTimeout(watchdog);
+            error("지도 초기화 실패\n카카오 설정을 확인해 주세요.");
+          }
+        };
+        document.head.appendChild(script);
+      })();
+    </script>
+  </body>
+</html>

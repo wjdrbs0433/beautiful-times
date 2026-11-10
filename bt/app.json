@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "BT · Beautiful Times",
+    "slug": "beautiful-times",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.beautifultimes.bt"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EEF1EA",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.beautifultimes.bt",
+      "allowBackup": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BT 앨범에 보관할 사진을 선택합니다.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "BT에서 사진첩을 사용합니다.",
+          "savePhotosPermission": "BT 사진을 기기 사진첩에 저장합니다.",
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      "expo-web-browser",
+      "expo-secure-store"
+    ],
+    "scheme": "bt"
+  }
+}
